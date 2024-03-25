@@ -6,120 +6,120 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// Storage defines the methods for interacting with the database.
 type Storage interface {
 	CreateAccount(*Account) error
-	GetAllAccount() ([]*Account, error)
-	GetAccountById(int) (*Account, error)
+	GetAllAccounts() ([]*Account, error)
+	GetAccountByID(int) (*Account, error)
 	DeleteAccount(int) error
 	UpdateAccount(*Account) error
 }
 
+// PostgresDB represents a connection to a PostgreSQL database.
 type PostgresDB struct {
 	db *sql.DB
 }
 
-// host=host.docker.internal
+// NewPostgresDB creates a new PostgresDB instance.
 func NewPostgresDB() (*PostgresDB, error) {
-	connStr := " user=postgres dbname=postgres sslmode=disable"
+	connStr := "user=postgres dbname=postgres sslmode=disable"
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, err
 	}
-	err = db.Ping()
-	if err != nil {
+	if err := db.Ping(); err != nil {
 		return nil, err
 	}
-	return &PostgresDB{
-		db: db,
-	}, nil
+	return &PostgresDB{db: db}, nil
 }
 
-func (s *PostgresDB) initDB() error {
-	err := s.CreateRoleTable()
-	if err != nil {
+// InitDB initializes the database schema.
+func (s *PostgresDB) InitDB() error {
+	if err := s.CreateRoleTable(); err != nil {
 		return err
 	}
-	err = s.CreateAccountTable()
-	if err != nil {
-		return err
-	}
-	return err
-}
-
-func (s *PostgresDB) CreateAccountTable() error {
-	Query := `create table if not exists account (
-    			id serial Primary Key,
-    			firstName varchar(255),
-    			lastName  varchar(255),
-    			email varchar(255),
-    			username varchar(255),
-    			hash varchar(255),
-    			country varchar(255),
-    			roleId int references role(id),
-    			createdAt timestamp
-    )`
-	_, err := s.db.Exec(Query)
-	return err
-}
-func (s *PostgresDB) CreateRoleTable() error {
-	Query := `CREATE TABLE if not exists role (
-    	id SERIAL PRIMARY KEY,
-    	name VARCHAR(50) UNIQUE
-	);`
-	_, err := s.db.Exec(Query)
-	var rowCount int
-	err = s.db.QueryRow("SELECT COUNT(*) FROM role").Scan(&rowCount)
-	if err != nil {
-		panic(err)
-	}
-
-	// Check if the table is empty
-	if rowCount == 0 {
-		QueryForRoles := "insert into role (name) values ('admin'), ('user')"
-		_, err = s.db.Query(QueryForRoles)
-		if err != nil {
-			return err
-		}
-	}
-	return err
-}
-
-func (s *PostgresDB) CreateAccount(account *Account) error {
-	Query := `insert into account (firstName, lastName, email, username, hash, country, roleId, createdAt)
-				values ($1,$2, $3, $4, $5, $6, $7, $8)`
-	_, err := s.db.Query(Query,
-		account.FirstName,
-		account.LastName,
-		account.Email,
-		account.Username,
-		account.EncryptedPassword,
-		account.Country,
-		account.RoleID,
-		account.CreatedAt)
-	if err != nil {
+	if err := s.CreateAccountTable(); err != nil {
 		return err
 	}
 	return nil
 }
-func (s *PostgresDB) GetAllAccounts() ([]*Account, error) {
-	Query := `select * from account`
-	rows, err := s.db.Query(Query)
+
+// CreateAccountTable creates the account table if it does not exist.
+func (s *PostgresDB) CreateAccountTable() error {
+	query := `CREATE TABLE IF NOT EXISTS account (
+		id SERIAL PRIMARY KEY,
+		firstName VARCHAR(255),
+		lastName VARCHAR(255),
+		email VARCHAR(255),
+		username VARCHAR(255),
+		hash VARCHAR(255),
+		country VARCHAR(255),
+		roleID INT REFERENCES role(id),
+		createdAt TIMESTAMP
+	)`
+	_, err := s.db.Exec(query)
+	return err
+}
+
+// CreateRoleTable creates the role table if it does not exist.
+func (s *PostgresDB) CreateRoleTable() error {
+	query := `CREATE TABLE IF NOT EXISTS role (
+		id SERIAL PRIMARY KEY,
+		name VARCHAR(50) UNIQUE
+	)`
+	_, err := s.db.Exec(query)
 	if err != nil {
-		panic(err)
+		return err
+	}
+
+	// Check if the table is empty
+	var rowCount int
+	err = s.db.QueryRow("SELECT COUNT(*) FROM role").Scan(&rowCount)
+	if err != nil {
+		return err
+	}
+	if rowCount == 0 {
+		// Insert default roles
+		query := "INSERT INTO role (name) VALUES ('admin'), ('user')"
+		_, err := s.db.Exec(query)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// CreateAccount inserts a new account into the database.
+func (s *PostgresDB) CreateAccount(account *Account) error {
+	query := `INSERT INTO account (firstName, lastName, email, username, hash, country, roleID, createdAt)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+	_, err := s.db.Exec(query, account.FirstName, account.LastName, account.Email,
+		account.Username, account.EncryptedPassword, account.Country, account.RoleID, account.CreatedAt)
+	return err
+}
+
+// GetAllAccounts retrieves all accounts from the database.
+func (s *PostgresDB) GetAllAccounts() ([]*Account, error) {
+	query := `SELECT * FROM account`
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
 	}
 	defer rows.Close()
+
 	var accounts []*Account
 	for rows.Next() {
 		account, err := scanIntoAccount(rows)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		accounts = append(accounts, account)
 	}
-	return accounts, err
+	return accounts, nil
 }
 
-func (s *PostgresDB) GetAccountById(id int) (*Account, error) {
+// GetAccountByID retrieves an account by its ID from the database.
+func (s *PostgresDB) GetAccountByID(id int) (*Account, error) {
 	rows, err := s.db.Query("select * from account where id = $1", id)
 	if err != nil {
 		return nil, err
@@ -129,6 +129,8 @@ func (s *PostgresDB) GetAccountById(id int) (*Account, error) {
 	}
 	return nil, fmt.Errorf("account %d not found", id)
 }
+
+// GetAccountByUsername retrieves an account by its username from the database.
 func (s *PostgresDB) GetAccountByUsername(username string) (*Account, error) {
 	rows, err := s.db.Query("select * from account where username = $1", username)
 	if err != nil {
@@ -140,8 +142,9 @@ func (s *PostgresDB) GetAccountByUsername(username string) (*Account, error) {
 	return nil, fmt.Errorf("account %s not found", username)
 }
 
+// DeleteAccount deletes an account from the database by its ID.
 func (s *PostgresDB) DeleteAccount(id int) error {
-	_, err := s.db.Query("delete from account where id = $1", id)
-	fmt.Println(err)
+	query := `DELETE FROM account WHERE id = $1`
+	_, err := s.db.Exec(query, id)
 	return err
 }

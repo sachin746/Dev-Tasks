@@ -2,12 +2,14 @@ package main
 
 import (
 	"fmt"
-	"github.com/golang-jwt/jwt/v5"
 	"net/http"
 	"os"
 	"time"
+
+	jwt "github.com/golang-jwt/jwt/v5"
 )
 
+// generateJWT generates a JWT token for the given account.
 func generateJWT(account *Account) (string, error) {
 	claims := jwt.MapClaims{
 		"exp":      time.Now().Add(1 * time.Minute).Unix(),
@@ -19,10 +21,12 @@ func generateJWT(account *Account) (string, error) {
 	return token.SignedString([]byte(secretKey))
 }
 
+// permissionDenied sends a permission denied response with the given message.
 func permissionDenied(w http.ResponseWriter, message string) {
 	writeJSON(w, http.StatusUnauthorized, message)
 }
 
+// validateToken validates the JWT token from the request header.
 func validateToken(tokenFromHeader string) (*jwt.Token, error) {
 	secretKey := []byte(os.Getenv("bank_secret"))
 	checkedToken, err := jwt.Parse(tokenFromHeader, func(token *jwt.Token) (interface{}, error) {

@@ -1,0 +1,197 @@
+basePath: /
+definitions:
+  main.Account:
+    properties:
+      country:
+        type: string
+      createdAt:
+        type: string
+      email:
+        type: string
+      firstName:
+        type: string
+      id:
+        type: integer
+      lastName:
+        type: string
+      username:
+        type: string
+    type: object
+  main.AccountRequest:
+    properties:
+      country:
+        type: string
+      email:
+        type: string
+      firstName:
+        type: string
+      lastName:
+        type: string
+      password:
+        type: string
+      roleId:
+        type: integer
+      username:
+        type: string
+    type: object
+  main.ApiError:
+    properties:
+      error:
+        type: string
+    type: object
+  main.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  main.LoginResponse:
+    properties:
+      token:
+        type: string
+      userName:
+        type: string
+    type: object
+host: localhost:1234
+info:
+  contact: {}
+  description: Blog app for adding learn materials.
+  title: Dev-Tasks
+  version: "1.0"
+paths:
+  /{id}/logout:
+    get:
+      parameters:
+      - description: Account ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Auth token
+        in: header
+        name: token
+        required: true
+        type: string
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      summary: Log out
+      tags:
+      - auth
+  /account:
+    get:
+      description: Retrieves a list of all accounts.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/main.Account'
+            type: array
+      summary: Get all accounts.
+    post:
+      consumes:
+      - application/json
+      description: Creates a new account based on the provided request data.
+      parameters:
+      - description: Account details to create
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.AccountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.Account'
+      summary: Create a new account.
+  /account/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes an account by its ID
+      parameters:
+      - description: Auth token
+        in: header
+        name: token
+        required: true
+        type: string
+      - description: Account ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: deleted":int "Success
+          schema:
+            additionalProperties:
+              type: integer
+            type: object
+      summary: Delete an account by ID
+      tags:
+      - accounts
+    get:
+      parameters:
+      - description: Account ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Auth token
+        in: header
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.Account'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/main.ApiError'
+      summary: Get account by ID
+      tags:
+      - accounts
+  /login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: Login details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/main.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.LoginResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.ApiError'
+      summary: Log in with username and password
+      tags:
+      - auth
+swagger: "2.0"

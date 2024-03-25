@@ -1,18 +1,24 @@
 package main
 
 import (
-	bcrypt2 "golang.org/x/crypto/bcrypt"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
+// LoginRequest represents the structure of a login request.
 type LoginRequest struct {
-	UserName string `json:"userName"`
+	UserName string `json:"username"`
 	Password string `json:"password"`
 }
+
+// LoginResponse represents the structure of a login response.
 type LoginResponse struct {
 	Token    string `json:"token"`
 	UserName string `json:"userName"`
 }
+
+// AccountRequest represents the structure of an account creation request.
 type AccountRequest struct {
 	FirstName string `json:"firstName"`
 	LastName  string `json:"lastName"`
@@ -23,6 +29,7 @@ type AccountRequest struct {
 	Country   string `json:"country"`
 }
 
+// Account represents the structure of an account.
 type Account struct {
 	ID                int       `json:"id"`
 	FirstName         string    `json:"firstName"`
@@ -35,8 +42,9 @@ type Account struct {
 	CreatedAt         time.Time `json:"createdAt"`
 }
 
+// NewAccount creates a new account with the provided details.
 func NewAccount(firstname, lastname, email, username, password, country string, roleId int) (*Account, error) {
-	hash, err := bcrypt2.GenerateFromPassword([]byte(password), bcrypt2.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +59,8 @@ func NewAccount(firstname, lastname, email, username, password, country string, 
 		CreatedAt:         time.Now().UTC(),
 	}, nil
 }
+
+// ValidPassword checks if the provided password matches the account's encrypted password.
 func (account *Account) ValidPassword(password string) bool {
-	return bcrypt2.CompareHashAndPassword([]byte(account.EncryptedPassword), []byte(password)) == nil
+	return bcrypt.CompareHashAndPassword([]byte(account.EncryptedPassword), []byte(password)) == nil
 }
