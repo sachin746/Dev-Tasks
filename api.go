@@ -6,21 +6,28 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/redis/go-redis/v9"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"log"
 	"net/http"
 	"time"
 )
 
+// APIServer represents the API server.
 type APIServer struct {
-	listenAddr  string
-	dbStore     *PostgresDB
-	redisClient *redis.Client
+	listenAddr  string        // Address to listen on
+	dbStore     *PostgresDB   // Database store
+	redisClient *redis.Client // Redis client
 }
+
+// apiFunc is a function type for handling API requests.
 type apiFunc func(w http.ResponseWriter, r *http.Request) error
+
+// ApiError represents an API error response.
 type ApiError struct {
 	Error string `json:"error"`
 }
 
+// makeHTTPHandleFunc creates an HTTP handler function from an apiFunc.
 func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if err := f(writer, request); err != nil {
@@ -29,18 +36,27 @@ func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 	}
 }
 
-func writeJSON(w http.ResponseWriter, status int, v any) error {
+// writeJSON writes JSON data to the response writer.
+func writeJSON(w http.ResponseWriter, status int, v interface{}) error {
 	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(status)
 	return json.NewEncoder(w).Encode(v)
 }
 
+// Run starts the API server.
 func (s *APIServer) Run() error {
 	router := mux.NewRouter()
+
+	// Swagger endpoint
+	router.PathPrefix("/swagger/").Handler(httpSwagger.Handler(httpSwagger.URL("/docs/swagger.json")))
+	router.HandleFunc("/docs/swagger.json", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./docs/swagger.json")
+	})
 	router.HandleFunc("/login", makeHTTPHandleFunc(s.handleLogin))
 	router.HandleFunc("/{id}/logout", isAuthenticated(makeHTTPHandleFunc(s.handleLogout), s))
 	router.HandleFunc("/account", makeHTTPHandleFunc(s.handleAccount))
 	router.HandleFunc("/account/{id}", isAuthenticated(makeHTTPHandleFunc(s.handleGetAccountByID), s))
+
 	log.Printf("Server running on port %v", s.listenAddr)
 	err := http.ListenAndServe(s.listenAddr, router)
 	if err != nil {
@@ -48,6 +64,8 @@ func (s *APIServer) Run() error {
 	}
 	return nil
 }
+
+// newAPIServer creates a new APIServer instance.
 func newAPIServer(listenAddr string, store *PostgresDB, redisClient *redis.Client) *APIServer {
 	return &APIServer{
 		listenAddr:  listenAddr,
@@ -55,6 +73,18 @@ func newAPIServer(listenAddr string, store *PostgresDB, redisClient *redis.Clien
 		redisClient: redisClient,
 	}
 }
+
+// handleLogin handles the login request.
+// Login endpoint
+// @Summary Log in with username and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// username body string true "UserName"
+// @Param request body LoginRequest true "Login details"
+// @Success 200 {object} LoginResponse
+// @Failure 400 {object} ApiError
+// @Router /login [post]
 func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
 	if r.Method != "POST" {
 		return fmt.Errorf("method not allowed %s", r.Method)
@@ -81,6 +111,16 @@ func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
 	}
 	return writeJSON(w, http.StatusOK, resp)
 }
+
+// handleLogout handles the logout request.
+// Logout endpoint
+// @Summary Log out
+// @Tags auth
+// @Produce plain
+// @Param id path int true "Account ID"
+// @Param token header string true "Auth token"
+// @Success 200 {string} string
+// @Router /{id}/logout [get]
 func (s *APIServer) handleLogout(w http.ResponseWriter, r *http.Request) error {
 	// Get token from cookie
 	token := r.Header.Get("token")
@@ -104,6 +144,12 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 	return fmt.Errorf("%v Method not Allow", r.Method)
 }
 
+// handleGetAllAccount handles the request to get all accounts.
+// @Summary Get all accounts.
+// @Description Retrieves a list of all accounts.
+// @Produce json
+// @Success 200 {array} Account
+// @Router /account [get]
 func (s *APIServer) handleGetAllAccount(w http.ResponseWriter, r *http.Request) error {
 	accounts, err := s.dbStore.GetAllAccounts()
 	if err != nil {
@@ -115,6 +161,16 @@ func (s *APIServer) handleGetAllAccount(w http.ResponseWriter, r *http.Request) 
 	}
 	return nil
 }
+
+// handleGetAccountByID handles the request to get an account by ID.
+// @Summary Get account by ID
+// @Tags accounts
+// @Produce json
+// @Param id path int true "Account ID"
+// @Param token header string true "Auth token"
+// @Success 200 {object} Account
+// @Failure 404 {object} ApiError
+// @Router /account/{id} [get]
 func (s *APIServer) handleGetAccountByID(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == "GET" {
 		id, err := getID(r)
@@ -122,7 +178,7 @@ func (s *APIServer) handleGetAccountByID(w http.ResponseWriter, r *http.Request)
 			return err
 		}
 
-		account, err := s.dbStore.GetAccountById(id)
+		account, err := s.dbStore.GetAccountByID(id)
 		if err != nil {
 			return err
 		}
@@ -136,6 +192,14 @@ func (s *APIServer) handleGetAccountByID(w http.ResponseWriter, r *http.Request)
 	return fmt.Errorf("method not allowed %s", r.Method)
 }
 
+// handleCreateAccount handles the request to create an account.
+// @Summary Create a new account.
+// @Description Creates a new account based on the provided request data.
+// @Accept json
+// @Produce json
+// @Param request body AccountRequest true "Account details to create"
+// @Success 200 {object} Account
+// @Router /account [post]
 func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) error {
 	var accountReq *AccountRequest
 	err := json.NewDecoder(r.Body).Decode(&accountReq)
@@ -163,6 +227,15 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 	return writeJSON(w, http.StatusOK, account)
 }
 
+// @Summary Delete an account by ID
+// @Description Deletes an account by its ID
+// @Tags accounts
+// @Accept json
+// @Produce json
+// @Param token header string true "Auth token"
+// @Param id path int true "Account ID"
+// @Success 200 {object} map[string]int "deleted":int "Success"
+// @Router /account/{id} [delete]
 func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error {
 	id, err := getID(r)
 	if err != nil {

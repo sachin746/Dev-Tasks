@@ -9,6 +9,7 @@ import (
 	"strconv"
 )
 
+// getID extracts an integer ID from the request URL parameters.
 func getID(r *http.Request) (int, error) {
 	idStr := mux.Vars(r)["id"]
 	id, err := strconv.Atoi(idStr)
@@ -17,6 +18,8 @@ func getID(r *http.Request) (int, error) {
 	}
 	return id, nil
 }
+
+// scanIntoAccount scans rows from a SQL result into an Account struct.
 func scanIntoAccount(rows *sql.Rows) (*Account, error) {
 	account := new(Account)
 	err := rows.Scan(
@@ -31,6 +34,8 @@ func scanIntoAccount(rows *sql.Rows) (*Account, error) {
 		&account.CreatedAt)
 	return account, err
 }
+
+// isAuthenticated is a middleware function to check if the user is authenticated.
 func isAuthenticated(handlerFunc http.HandlerFunc, s *APIServer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("calling JWT auth middleware")
@@ -52,7 +57,7 @@ func isAuthenticated(handlerFunc http.HandlerFunc, s *APIServer) http.HandlerFun
 			permissionDenied(w, "error fetching id")
 			return
 		}
-		account, err := s.dbStore.GetAccountById(userID)
+		account, err := s.dbStore.GetAccountByID(userID)
 		if err != nil {
 			permissionDenied(w, "error fetching account")
 			return

@@ -1,4 +1,5 @@
 build:
+	@swag init
 	@go build -o bin/bankmanage
 
 run: build

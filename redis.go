@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
-	redis "github.com/redis/go-redis/v9"
 	"log"
 	"net/http"
+
+	redis "github.com/redis/go-redis/v9"
 )
 
+// NewRedisDB creates a new Redis client.
 func NewRedisDB() *redis.Client {
 	client := redis.NewClient(&redis.Options{
 		Addr:     "localhost:6379",
@@ -20,6 +22,7 @@ func NewRedisDB() *redis.Client {
 	return client
 }
 
+// isBlacklistedToken checks if the provided token is blacklisted in Redis.
 func isBlacklistedToken(w http.ResponseWriter, r *http.Request, s *redis.Client) bool {
 	// Check if token is blacklisted
 	token := r.Header.Get("token")
@@ -31,7 +34,7 @@ func isBlacklistedToken(w http.ResponseWriter, r *http.Request, s *redis.Client)
 	}
 
 	if isBlacklisted == 1 {
-		http.Error(w, "Blacklist token", http.StatusUnauthorized)
+		http.Error(w, "Blacklisted token", http.StatusUnauthorized)
 		return true
 	}
 	return false
